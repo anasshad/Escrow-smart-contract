@@ -4,6 +4,7 @@ const {
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
+const { ethers } = require("hardhat");
 
 describe("Escrow", function () {
   // We define a fixture to reuse the same setup in every test.
@@ -22,7 +23,12 @@ describe("Escrow", function () {
     const Escrow = await ethers.getContractFactory("Escrow");
     const escrow = await Escrow.deploy();
 
-    return { escrow, dueDate, contractAmount, buyer, seller };
+    const Contract = await ethers.getContractFactory("Contract");
+    const contract = await Contract.attach(
+      "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"
+    );
+
+    return { escrow, contract, dueDate, contractAmount, buyer, seller };
   }
 
   describe("Create Contract", function () {
@@ -43,7 +49,7 @@ describe("Escrow", function () {
           }
         )
       ).not.to.be.reverted;
-      //
+      //Contract state should be in process
       await expect(
         await escrow.getContractState(
           "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"
@@ -51,6 +57,52 @@ describe("Escrow", function () {
       ).to.equal(1);
     });
 
-    it("Should deliver the order", async function () {});
+    it("Should deliver the order", async function () {
+      const { escrow, contract, dueDate, contractAmount, buyer, seller } =
+        await loadFixture(deployOneYearLockFixture);
+      //Create contract
+      await escrow.createContract(
+        await buyer.getAddress(),
+        await seller.getAddress(),
+        "Contract Name",
+        "This is the contract description",
+        dueDate,
+        escrow.address,
+        {
+          value: contractAmount,
+        }
+      );
+      //Making time within the due date
+      await time.increaseTo(dueDate - 10000);
+      //Deliver the contract
+      await expect(await contract.connect(seller).deliver()).not.to.be.reverted;
+      //Check the contract state
+      await expect(await contract.state()).to.equal(3);
+    });
+
+    it("Should cancel the contract", async function () {
+      const { escrow, contract, dueDate, contractAmount, buyer, seller } =
+        await loadFixture(deployOneYearLockFixture);
+      //Create contract
+      await escrow.createContract(
+        await buyer.getAddress(),
+        await seller.getAddress(),
+        "Contract Name",
+        "This is the contract description",
+        dueDate,
+        escrow.address,
+        {
+          value: contractAmount,
+        }
+      );
+      //Cancel the contract
+      await expect(await contract.cancelOrder()).not.to.be.reverted;
+      //Check the contract state
+      await expect(await contract.state()).to.equal(6);
+      //Do refund
+      await expect(
+        await escrow.refund("0xa16e02e87b7454126e5e10d957a927a7f5b5d2be")
+      ).to.changeEtherBalance(buyer, contractAmount);
+    });
   });
 });

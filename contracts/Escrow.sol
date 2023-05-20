@@ -63,4 +63,15 @@ contract Escrow {
         con.setClosed();
         payable(msg.sender).transfer(con.amount());
     }
+
+    function refund(address _contractAddress) public {
+        Contract con = Contract(_contractAddress);
+        require(msg.sender == con.buyer(), "Caller is not buyer");
+        require(
+            con.state() == Contract.States.Cancelled,
+            "Contract not cancelled"
+        );
+        con.setClosed();
+        payable(msg.sender).transfer(con.amount());
+    }
 }

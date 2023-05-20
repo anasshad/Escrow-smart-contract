@@ -22,7 +22,8 @@ contract Contract {
         Pastdue, //contract is past due
         Delivered, //buyer has delivered
         Completed, //seller has approved order
-        Closed //payment have been withdrawn
+        Closed, //payment have been withdrawn
+        Cancelled //contract has been cancelled
     }
 
     States public state = States.Started;
@@ -77,6 +78,14 @@ contract Contract {
     function approve() public onlyBuyer {
         require(state == States.Delivered, "Contract is not delivered");
         state = States.Completed;
+    }
+
+    function cancelOrder() public {
+        require(
+            msg.sender == buyer || msg.sender == seller,
+            "Not buyer or seller"
+        );
+        state = States.Cancelled;
     }
 
     function setClosed() public onlyAdminContract {
